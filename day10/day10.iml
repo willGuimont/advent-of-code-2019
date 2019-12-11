@@ -17,5 +17,6 @@
     <orderEntry type="library" name="array-0.5.3.0" level="project" />
     <orderEntry type="library" name="deepseq-1.4.4.0" level="project" />
     <orderEntry type="library" name="sort-1.0.0.0" level="project" />
+    <orderEntry type="library" name="monad-loops-0.4.3" level="project" />
   </component>
 </module>
