@@ -13,7 +13,7 @@ isNonDecreasing xs = all (uncurry (<=)) pairs
     pairs = byConsecutivePairs xs
 
 hasGroupOfTwo :: Eq a => [a] -> Bool
-hasGroupOfTwo xs = any id consecutiveEquals
+hasGroupOfTwo xs = or consecutiveEquals
   where
     pairs = byConsecutivePairs xs
     consecutiveEquals = map (uncurry (==)) pairs
