@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::io;
-
-use crate::intcode::Instruction::{Add, Equals, Halt, Input, JumpIfFalse, JumpIfTrue, LessThan, Mult, Output, AdjustRelativeBase};
+use crate::intcode::Instruction::{Add, AdjustRelativeBase, Equals, Halt, Input, JumpIfFalse, JumpIfTrue, LessThan, Mult, Output};
 use crate::intcode::Mode::{Immediate, Position, Relative};
 
 pub struct IntCode {
     memory: HashMap<usize, i64>,
     pc: usize,
-    relative_base: i64
+    relative_base: i64,
+    score: i64,
+    paddle_x: i64,
+    ball_x: i64,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,15 +67,56 @@ impl IntCode {
             memory,
             pc: 0,
             relative_base: 0,
+            score: 0,
+            paddle_x: 0,
+            ball_x: 0,
         }
     }
 
     pub fn run(&mut self) {
+        let mut outputs = Vec::new();
         loop {
             let current_instruction = self.parse();
-            let halted = self.execute(current_instruction);
+            let input = if let Input(x) = current_instruction {
+                if self.paddle_x > self.ball_x {
+                    Some(1)
+                } else if self.paddle_x < self.ball_x {
+                    Some(-1)
+                } else {
+                    Some(0)
+                }
+            } else {
+                None
+            };
+
+            let (halted, output) = self.execute(current_instruction, input);
+
+            if let Some(output) = output {
+                outputs.push(output);
+            }
+
+            if outputs.len() == 3 {
+                let x = outputs[0];
+                let y = outputs[1];
+                let z = outputs[2];
+                println!("parse: {} {} {}", x, y, z);
+
+                if x == -1 && y == 0 {
+                    self.score = z;
+                    println!("score: {}", self.score);
+                } else if z == 4 {
+                    self.paddle_x = x;
+                    println!("paddle: {}", self.paddle_x);
+                } else if z == 3 {
+                    self.ball_x = x;
+                    println!("ball: {}", self.ball_x);
+                }
+
+                outputs = Vec::new();
+            }
 
             if halted {
+                println!("{}", self.score);
                 break;
             }
         }
@@ -156,7 +199,7 @@ impl IntCode {
                 let mode = mode.clone();
                 let arg = match mode {
                     Position => {
-                        let index = self.read_memory(self.pc+ i + 1) as usize;
+                        let index = self.read_memory(self.pc + i + 1) as usize;
                         let value = self.read_memory(index);
                         Argument {
                             mode,
@@ -171,9 +214,9 @@ impl IntCode {
                             value,
                             address: 0, // TODO
                         }
-                    },
+                    }
                     Relative => {
-                        let index = (self.read_memory(self.pc+ i + 1) + self.relative_base) as usize;
+                        let index = (self.read_memory(self.pc + i + 1) + self.relative_base) as usize;
                         let value = self.read_memory(index);
                         Argument {
                             mode,
@@ -188,7 +231,9 @@ impl IntCode {
         arguments
     }
 
-    fn execute(&mut self, instruction: Instruction) -> bool {
+    fn execute(&mut self, instruction: Instruction, input: Option<i64>) -> (bool, Option<i64>) {
+        let mut halted = false;
+        let mut output = None;
         match instruction {
             Add(a, b, to) => {
                 let value = a.value + b.value;
@@ -201,20 +246,19 @@ impl IntCode {
                 self.pc += 4;
             }
             Input(to) => {
-//                println!("Input: ");
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).expect("Could not read from stdin");
-                let input = input.trim();
-                let input = input.parse().expect("Bad input");
-                self.write_memory(to.address as usize, input);
-                self.pc += 2;
+                if let Some(input) = input {
+                    self.write_memory(to.address as usize, input);
+                    self.pc += 2;
+                } else {
+                    panic!("no input");
+                }
             }
             Output(what) => {
-                println!("{}", what.value);
+                output = Some(what.value);
                 self.pc += 2;
             }
             Halt => {
-                return true;
+                halted = true;
             }
             JumpIfTrue(condition, to) => {
                 if condition.value != 0 {
@@ -253,6 +297,6 @@ impl IntCode {
                 self.pc += 2;
             }
         }
-        false
+        (halted, output)
     }
 }
